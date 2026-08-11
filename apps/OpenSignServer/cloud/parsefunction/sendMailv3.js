@@ -17,6 +17,8 @@ async function sendMailProvider(req) {
         host: process.env.SMTP_HOST,
         port: process.env.SMTP_PORT || 465,
         secure: smtpsecure,
+        // Stalwart advertises XOAUTH2 first; force LOGIN/PLAIN.
+        authMethod: 'LOGIN',
       };
 
       // ✅ Add auth only if BOTH username & password exist

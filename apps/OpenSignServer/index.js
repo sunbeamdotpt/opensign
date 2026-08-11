@@ -69,6 +69,10 @@ if (smtpenable) {
       host: process.env.SMTP_HOST,
       port: process.env.SMTP_PORT || 465,
       secure: smtpsecure,
+      // Force LOGIN/PLAIN auth. Stalwart advertises XOAUTH2 first, and
+      // nodemailer 8 picks it even when no OAuth2 credentials are provided,
+      // causing an uncaught `getToken` exception during startup verify().
+      authMethod: 'LOGIN',
     };
 
     // ✅ Add auth only if BOTH username & password exist

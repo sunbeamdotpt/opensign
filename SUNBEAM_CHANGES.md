@@ -52,6 +52,12 @@ The following variables are added or relevant to this fork. See `.env.example` f
 | `OIDC_IDENTITY_SCOPE` | M2M scope for identity lookup; defaults to `identity:admin`. |
 | `REACT_APP_OIDC_ENABLED` | Show the SSO button in the frontend. |
 
+## Stalwart SMTP relay compatibility
+
+The server uses a Stalwart Mail app password as its SMTP relay. Stalwart advertises `XOAUTH2` before `LOGIN`/`PLAIN` in its EHLO response, and nodemailer 8 will select `XOAUTH2` even when no OAuth2 credentials are configured. That causes an uncaught `getToken` exception during `transporter.verify()` at startup.
+
+All `nodemailer.createTransport(...)` calls in the server now set `authMethod: 'LOGIN'` to force plain username/password authentication against Stalwart.
+
 ## Branching and releases
 
 This fork tracks the latest upstream OpenSign tag and applies Sunbeam-specific changes on top. The current base tag is:
