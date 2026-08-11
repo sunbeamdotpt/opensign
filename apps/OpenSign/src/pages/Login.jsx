@@ -187,11 +187,16 @@ function Login() {
   };
 
   const handleSsoLogin = () => {
-    // appInfo.baseUrl points at the Parse server path (e.g. http://localhost:8080/app);
-    // OIDC routes live at the backend root, so strip /app and append the OIDC login path.
-    const backendOrigin = (appInfo.baseUrl || window.location.origin)
-      .replace(/\/app\/?$/, "")
-      .replace(/\/$/, "");
+    // appInfo.baseUrl points at the Parse server path (e.g. http://localhost:8080/app
+    // or https://signatures.sunbeam.pt/api/app). OIDC routes live at the backend root
+    // on the same origin in production, so use window.location.origin when the public
+    // server URL is mounted under /api/app; otherwise fall back to stripping /app.
+    const baseUrl = appInfo.baseUrl || "";
+    const backendOrigin = baseUrl.includes("/api/app")
+      ? window.location.origin
+      : (baseUrl || window.location.origin)
+          .replace(/\/app\/?$/, "")
+          .replace(/\/$/, "");
     window.location.href = `${backendOrigin}/auth/oidc/login`;
   };
 
