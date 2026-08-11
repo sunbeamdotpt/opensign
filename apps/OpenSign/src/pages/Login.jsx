@@ -48,8 +48,33 @@ function Login() {
   const [errMsg, setErrMsg] = useState();
   useEffect(() => {
     handleUserExist();
+    handleOidcCallback();
     // eslint-disable-next-line
   }, []);
+
+  const handleOidcCallback = async () => {
+    const params = new URLSearchParams(location.search);
+    const sessionToken = params.get("sessionToken");
+    const error = params.get("error");
+    const errorDescription = params.get("error_description");
+
+    if (error) {
+      showToast("danger", errorDescription || t("sso-login-failed"));
+      return;
+    }
+
+    if (sessionToken) {
+      try {
+        setState({ ...state, loading: true });
+        await Parse.User.become(sessionToken);
+        localStorage.setItem("accesstoken", sessionToken);
+        await continueLoginFlow();
+      } catch (err) {
+        console.error("OIDC callback login error", err);
+        showToast("danger", t("invalid-sso-session"));
+      }
+    }
+  };
 
   const handleUserExist = async () => {
     checkUserExt();
@@ -142,6 +167,10 @@ function Login() {
       return;
     }
     await handleLogin();
+  };
+
+  const handleSsoLogin = () => {
+    window.location.href = `${appInfo.baseUrl}auth/oidc/login`;
   };
 
   const setThirdpartyLoader = (value) => {
@@ -515,6 +544,16 @@ function Login() {
                         disabled={state.loading}
                       >
                         {state.loading ? t("loading") : t("login")}
+                      </button>
+                    </div>
+                    <div className="mt-4 text-center">
+                      <button
+                        type="button"
+                        className="op-btn op-btn-outline op-btn-secondary w-full text-xs"
+                        onClick={handleSsoLogin}
+                        disabled={state.loading}
+                      >
+                        {t("sign-SSO")}
                       </button>
                     </div>
                   </form>

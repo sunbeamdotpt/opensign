@@ -68,6 +68,8 @@
   "loading": "Loading...",
   "of": "of",
   "sign-SSO": "Sign in with SSO",
+  "sso-login-failed": "SSO login failed.",
+  "invalid-sso-session": "Invalid SSO session.",
   "login-page": "Login Page",
   "or": "OR",
   "signup-page": "Signup page",
