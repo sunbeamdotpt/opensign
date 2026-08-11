@@ -23,6 +23,8 @@ function createS3Client({ region, accessKeyId, secretAccessKey, endpoint = null 
     config.endpoint = `https://${endpoint}`;
   }
 
+  config.forcePathStyle = true;
+
   return new S3Client(config);
 }
 
@@ -37,9 +39,23 @@ const s3 = createS3Client({
 function getS3ParamsFromUrl(fileUrl) {
   try {
     const url = new URL(fileUrl);
-    const Bucket = url.hostname.split('.')[0];
-    const Key = decodeURIComponent(url.pathname.slice(1));
-    return { Bucket, Key };
+    const bucket = process.env.DO_SPACE;
+
+    // Virtual-hosted-style URLs still exist for legacy objects, e.g.
+    // https://opensign.s3.sunbeam.pt/<key>
+    if (url.hostname.startsWith(`${bucket}.`)) {
+      return { Bucket: bucket, Key: decodeURIComponent(url.pathname.slice(1)) };
+    }
+
+    // Path-style URLs (current), e.g.
+    // https://s3.sunbeam.pt/opensign/<key>
+    const segments = url.pathname.split('/').filter(Boolean);
+    if (segments[0] !== bucket) {
+      console.warn(`⚠️ S3 URL path does not start with bucket ${bucket}: ${fileUrl}`);
+      return null;
+    }
+    const Key = decodeURIComponent(segments.slice(1).join('/'));
+    return { Bucket: bucket, Key };
   } catch {
     return null;
   }
