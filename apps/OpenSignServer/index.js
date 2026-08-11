@@ -13,7 +13,9 @@ import { ApiPayloadConverter } from 'parse-server-api-mail-adapter';
 import S3Adapter from '@parse/s3-files-adapter';
 import FSFilesAdapter from '@parse/fs-files-adapter';
 import { app as customRoute } from './cloud/customRoute/customApp.js';
-import { exec } from 'child_process';
+import { exec as execCallback } from 'child_process';
+import { promisify } from 'util';
+const exec = promisify(execCallback);
 import { createTransport } from 'nodemailer';
 import { appName, cloudServerUrl, serverAppId, smtpenable, smtpsecure, useLocal } from './Utils.js';
 import { SSOAuth } from './auth/authadapter.js';
@@ -69,10 +71,10 @@ if (smtpenable) {
       host: process.env.SMTP_HOST,
       port: process.env.SMTP_PORT || 465,
       secure: smtpsecure,
-      // Force LOGIN/PLAIN auth. Stalwart advertises XOAUTH2 first, and
-      // nodemailer 8 picks it even when no OAuth2 credentials are provided,
-      // causing an uncaught `getToken` exception during startup verify().
-      authMethod: 'LOGIN',
+      // Force PLAIN auth. Stalwart advertises XOAUTH2 first, and nodemailer 8
+      // picks it even when no OAuth2 credentials are provided, causing an
+      // uncaught `getToken` exception during startup verify().
+      authMethod: 'PLAIN',
     };
 
     // ✅ Add auth only if BOTH username & password exist
@@ -253,25 +255,26 @@ if (!process.env.TESTING) {
   // Set the Keep-Alive and headers timeout to 100 seconds
   httpServer.keepAliveTimeout = 100000; // in milliseconds
   httpServer.headersTimeout = 100000; // in milliseconds
-  httpServer.listen(port, '0.0.0.0', function () {
+  httpServer.listen(port, '0.0.0.0', async function () {
     console.log('opensign-server running on port ' + port + '.');
     const isWindows = process.platform === 'win32';
     // console.log('isWindows', isWindows);
-    runDbMigrations();
+
+    // Run parse-dbtool migrate first so the Postgres schema exists,
+    // then apply Sunbeam-specific migration indexes/constraints.
     const migrate = isWindows
       ? `set APPLICATION_ID=${serverAppId}&& set SERVER_URL=${cloudServerUrl}&& set MASTER_KEY=${process.env.MASTER_KEY}&& npx parse-dbtool migrate`
       : `APPLICATION_ID=${serverAppId} SERVER_URL=${cloudServerUrl} MASTER_KEY=${process.env.MASTER_KEY} npx parse-dbtool migrate`;
-    exec(migrate, (error, stdout, stderr) => {
-      if (error) {
-        console.error(`Error: ${error.message}`);
-        return;
-      }
-
+    try {
+      const { stdout, stderr } = await exec(migrate);
       if (stderr) {
-        console.error(`Error: ${stderr}`);
-        return;
+        console.error(`parse-dbtool stderr: ${stderr}`);
       }
-      console.log(`Command output: ${stdout}`);
-    });
+      console.log(`parse-dbtool output: ${stdout}`);
+    } catch (error) {
+      console.error(`parse-dbtool failed: ${error.message}`);
+    }
+
+    runDbMigrations();
   });
 }
