@@ -16,7 +16,8 @@ import { showTenant } from "../redux/reducers/ShowTenant";
 import {
   getAppLogo,
   saveLanguageInLocal,
-  usertimezone
+  usertimezone,
+  getEnv
 } from "../constant/Utils";
 import Loader from "../primitives/Loader";
 import { useTranslation } from "react-i18next";
@@ -46,9 +47,11 @@ function Login() {
   const [isModal, setIsModal] = useState(false);
   const [image, setImage] = useState();
   const [errMsg, setErrMsg] = useState();
+  const runtimeEnv = getEnv();
   const isOidcEnabled =
     import.meta.env.VITE_OIDC_ENABLED === "true" ||
-    process.env.REACT_APP_OIDC_ENABLED === "true";
+    process.env.REACT_APP_OIDC_ENABLED === "true" ||
+    runtimeEnv?.REACT_APP_OIDC_ENABLED === "true";
 
   useEffect(() => {
     // Process an OIDC callback first so the session is established before we
