@@ -102,6 +102,7 @@ if (smtpenable) {
 }
 const mailsender = smtpenable ? process.env.SMTP_USER_EMAIL : process.env.MAILGUN_SENDER;
 export const config = {
+  // Supports MongoDB (mongodb:// or mongodb+srv://) and PostgreSQL (postgres://) URIs.
   databaseURI:
     process.env.DATABASE_URI || process.env.MONGODB_URI || 'mongodb://localhost:27017/dev',
   cloud: function () {

@@ -15,6 +15,7 @@
     "prettier": "prettier --write '{cloud,spec}/{**/*,*}.js' 'index.js'",
     "start": "node index.js",
     "test": "mongodb-runner start && TESTING=true jasmine",
+    "test:postgres": "TEST_DATABASE_URI=postgres://opensign:opensignpass@localhost:5432/opensign-test TESTING=true jasmine",
     "watch": "nodemon index.js"
   },
   "dependencies": {
@@ -50,6 +51,7 @@
     "parse-server": "^8.6.77",
     "parse-server-api-mail-adapter": "^5.0.5",
     "pdf-lib": "^1.17.1",
+    "pg": "^8.18.0",
     "posthog-node": "^5.21.2",
     "qrcode": "^1.5.4",
     "rate-limiter-flexible": "^9.1.1",
