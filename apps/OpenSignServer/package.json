@@ -38,7 +38,7 @@
     "form-data": "^4.0.6",
     "generate-api-key": "^1.0.2",
     "googleapis": "^171.4.0",
-    "libreoffice-convert": "^1.8.1",
+    "libreoffice-convert": "^1.8.2",
     "mailgun.js": "^13.0.0",
     "moment": "^2.30.1",
     "mongodb": "^7.2.0",
