@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 dotenv.config({ quiet: true });
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import { ParseServer } from 'parse-server';
 import path from 'path';
 const __dirname = path.resolve();
@@ -16,6 +17,7 @@ import { exec } from 'child_process';
 import { createTransport } from 'nodemailer';
 import { appName, cloudServerUrl, serverAppId, smtpenable, smtpsecure, useLocal } from './Utils.js';
 import { SSOAuth } from './auth/authadapter.js';
+import { oidcRouter, oidcConfigured } from './auth/oidc.js';
 import runDbMigrations from './migrationdb/index.js';
 import { validateSignedLocalUrl } from './cloud/parsefunction/getSignedUrl.js';
 let fsAdapter;
@@ -171,6 +173,13 @@ export const app = express();
 app.use(cors());
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ limit: '100mb', extended: true }));
+app.use(cookieParser());
+
+// OIDC admin login routes (optional, configured via env vars)
+if (oidcConfigured()) {
+  app.use('/auth/oidc', oidcRouter());
+}
+
 app.use(function (req, res, next) {
   req.headers['x-real-ip'] = getUserIP(req);
   const publicUrl = 'https://' + req?.get('host');
