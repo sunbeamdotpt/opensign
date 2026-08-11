@@ -1,13 +1,13 @@
 services:
   server:
-    image: opensign/opensignserver:main
+    image: ghcr.io/sunbeamdotpt/opensignserver:main
     container_name: OpenSignServer-container
     volumes:
       - opensign-files:/usr/src/app/files
     ports:
       - "8080:8080"
     depends_on:
-      - mongo
+      - postgres
     env_file: .env.prod
     environment:
       - NODE_ENV=production
@@ -15,21 +15,25 @@ services:
       - PUBLIC_URL=${HOST_URL:-https://localhost:3001}
     networks:
       - app-network
-  mongo:
-    image: mongo:latest
-    container_name: mongo-container
+  postgres:
+    image: postgres:18
+    container_name: postgres-container
     volumes:
-      - data-volume:/data/db
+      - postgres-data:/var/lib/postgresql/data
     ports:
-      - "27018:27017"
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=opensign
+      - POSTGRES_PASSWORD=opensignpass
+      - POSTGRES_DB=opensign
     networks:
       - app-network
   client:
-    image: opensign/opensign:main
+    image: ghcr.io/sunbeamdotpt/opensign:main
     container_name: OpenSign-container
     depends_on:
       - server
-    env_file: .env.prod  
+    env_file: .env.prod
     ports:
       - "3000:3000"
     networks:
@@ -55,7 +59,7 @@ networks:
     driver: bridge
 
 volumes:
-  data-volume:
+  postgres-data:
   web-root:
   caddy_data:
   caddy_config:
