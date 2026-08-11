@@ -27,6 +27,11 @@ RUN npm run build
 # Inject env.js loader into index.html
 RUN sed -i '/<head>/a\<script src="/env.js"></script>' build/index.html
 
+# The container runs as uid 1000 and entrypoint.sh writes runtime env into
+# build/env.js at startup, so ensure the build directory is writable.
+RUN chown -R node:node build
+USER node
+
 # Make port 3000 available to the world outside this container
 EXPOSE 3000
 
