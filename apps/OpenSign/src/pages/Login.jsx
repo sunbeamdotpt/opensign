@@ -173,6 +173,10 @@ function Login() {
     window.location.href = `${appInfo.baseUrl}auth/oidc/login`;
   };
 
+  const oidcEnabled =
+    import.meta.env.VITE_OIDC_ENABLED === "true" ||
+    process.env.REACT_APP_OIDC_ENABLED === "true";
+
   const setThirdpartyLoader = (value) => {
     setState({ ...state, thirdpartyLoader: value });
   };
@@ -546,16 +550,18 @@ function Login() {
                         {state.loading ? t("loading") : t("login")}
                       </button>
                     </div>
-                    <div className="mt-4 text-center">
-                      <button
-                        type="button"
-                        className="op-btn op-btn-outline op-btn-secondary w-full text-xs"
-                        onClick={handleSsoLogin}
-                        disabled={state.loading}
-                      >
-                        {t("sign-SSO")}
-                      </button>
-                    </div>
+                    {oidcEnabled && (
+                      <div className="mt-4 text-center">
+                        <button
+                          type="button"
+                          className="op-btn op-btn-outline op-btn-secondary w-full text-xs"
+                          onClick={handleSsoLogin}
+                          disabled={state.loading}
+                        >
+                          {t("sign-SSO")}
+                        </button>
+                      </div>
+                    )}
                   </form>
                 </div>
                 {width >= 768 && (
