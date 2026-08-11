@@ -46,6 +46,7 @@ if (useLocal !== 'true') {
         },
         endpoint: spacesEndpoint,
         signatureVersion: 'v4',
+        forcePathStyle: true,
       },
     };
     fsAdapter = new S3Adapter(s3Options);
