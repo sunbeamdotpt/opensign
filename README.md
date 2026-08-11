@@ -29,6 +29,12 @@
 ---
 </div>
 
+> **⚠️ Sunbeam Studios fork disclaimer**
+>
+> This repository is a private fork maintained by **Sunbeam Studios** for internal use within the **SBBB✨** ecosystem. It contains changes (including PostgreSQL support and Sunbeam SSO gateway integration) that are **not supported for external consumption** and will not be contributed back upstream. If you are looking for the official, community-supported OpenSign project, please visit [OpenSignLabs/OpenSign](https://github.com/OpenSignLabs/OpenSign).
+>
+> **Do not open issues or pull requests against this fork unless you are part of the Sunbeam Studios team.**
+
 ### Table of Contents
 
 1. [Introduction](#introduction)
