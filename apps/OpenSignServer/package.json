@@ -54,7 +54,7 @@
     "parse-server-api-mail-adapter": "^5.0.5",
     "pdf-lib": "^1.17.1",
     "pg": "^8.18.0",
-    "posthog-node": "^5.21.2",
+    "posthog-node": "^5.48.1",
     "qrcode": "^1.5.4",
     "rate-limiter-flexible": "^9.1.1",
     "sharp": "^0.34.5",
