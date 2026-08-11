@@ -59,7 +59,7 @@
     "rate-limiter-flexible": "^9.1.1",
     "sharp": "^0.34.5",
     "speakeasy": "^2.0.0",
-    "ws": ">=8.21.0"
+    "ws": ">=8.21.3"
   },
   "type": "module",
   "devDependencies": {
