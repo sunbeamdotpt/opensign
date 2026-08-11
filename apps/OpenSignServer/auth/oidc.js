@@ -19,6 +19,84 @@ function pkceChallenge(verifier) {
     .toString('base64url');
 }
 
+function formatNameFromEmail(email) {
+  if (!email || typeof email !== 'string') return email;
+  const localPart = email.split('@')[0];
+  // Replace dots, dashes, and underscores with spaces, then title-case each word.
+  return localPart
+    .replace(/[._-]+/g, ' ')
+    .split(' ')
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+}
+
+async function fetchGatewayIdentity(accessToken) {
+  if (
+    !OIDC_IDENTITY_LOOKUP_ENABLED ||
+    !OIDC_IDENTITY_CLIENT_ID ||
+    !OIDC_IDENTITY_CLIENT_SECRET ||
+    !OIDC_ISSUER
+  ) {
+    return null;
+  }
+
+  try {
+    // 1. Call userinfo to get the gateway public identity id (sub).
+    const userinfoUrl = new URL('/oauth2/userinfo', OIDC_ISSUER).toString();
+    const userinfoRes = await axios.get(userinfoUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      timeout: 10000,
+    });
+    const identityId = userinfoRes.data?.sub;
+    if (!identityId) {
+      console.warn('OIDC userinfo did not return a subject');
+      return null;
+    }
+
+    // 2. Obtain an M2M token for the identity lookup client.
+    const tokenUrl = new URL('/oauth2/token', OIDC_ISSUER).toString();
+    const tokenRes = await axios.post(
+      tokenUrl,
+      new URLSearchParams({
+        grant_type: 'client_credentials',
+        client_id: OIDC_IDENTITY_CLIENT_ID,
+        client_secret: OIDC_IDENTITY_CLIENT_SECRET,
+        scope: OIDC_IDENTITY_SCOPE,
+      }).toString(),
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, timeout: 10000 }
+    );
+    const m2mToken = tokenRes.data?.access_token;
+    if (!m2mToken) {
+      console.warn('OIDC identity lookup client could not obtain a token');
+      return null;
+    }
+
+    // 3. Fetch the full identity traits from the gateway.
+    const identityUrl = new URL('/iam.v1.IdentityService/GetIdentity', OIDC_ISSUER).toString();
+    const identityRes = await axios.post(
+      identityUrl,
+      { id: identityId },
+      { headers: { Authorization: `Bearer ${m2mToken}`, 'Content-Type': 'application/json' }, timeout: 10000 }
+    );
+    return identityRes.data || null;
+  } catch (error) {
+    console.error('OIDC identity lookup failed:', error.message);
+    return null;
+  }
+}
+
+function buildDisplayName(identityTraits, fallbackEmail) {
+  if (!identityTraits) return formatNameFromEmail(fallbackEmail);
+  // Prefer the explicit full name from the identity provider.
+  if (identityTraits.name) return identityTraits.name;
+  const given = identityTraits.given_name;
+  const middle = identityTraits.middle_name;
+  const family = identityTraits.family_name;
+  const fullName = [given, middle, family].filter(Boolean).join(' ');
+  return fullName || formatNameFromEmail(fallbackEmail);
+}
+
 const router = Router();
 
 const OIDC_ENABLED = process.env.OIDC_ENABLED === 'true';
@@ -28,9 +106,13 @@ const OIDC_CLIENT_SECRET = process.env.OIDC_CLIENT_SECRET;
 const OIDC_REDIRECT_URI =
   process.env.OIDC_REDIRECT_URI || 'http://localhost:8080/auth/oidc/callback';
 const OIDC_FRONTEND_REDIRECT =
-  process.env.OIDC_FRONTEND_REDIRECT || 'http://localhost:3000/login';
+  process.env.OIDC_FRONTEND_REDIRECT || 'http://localhost:3000/';
 const OIDC_ADMIN_AUTO_PROVISION = process.env.OIDC_ADMIN_AUTO_PROVISION === 'true';
 const OIDC_ADMIN_DOMAIN = process.env.OIDC_ADMIN_DOMAIN || '';
+const OIDC_IDENTITY_LOOKUP_ENABLED = process.env.OIDC_IDENTITY_LOOKUP_ENABLED === 'true';
+const OIDC_IDENTITY_CLIENT_ID = process.env.OIDC_IDENTITY_CLIENT_ID;
+const OIDC_IDENTITY_CLIENT_SECRET = process.env.OIDC_IDENTITY_CLIENT_SECRET;
+const OIDC_IDENTITY_SCOPE = process.env.OIDC_IDENTITY_SCOPE || 'identity:admin';
 const OIDC_SCOPES = process.env.OIDC_SCOPES || 'openid email profile offline_access';
 const APPID = serverAppId;
 const masterKEY = process.env.MASTER_KEY;
@@ -85,8 +167,11 @@ async function createSessionToken(userId) {
   return res.data;
 }
 
-async function findOrCreateAdminUser(email, name) {
+async function findOrCreateAdminUser(email, traits) {
   const normalizedEmail = email.toLowerCase().replace(/\s/g, '');
+  const displayName = buildDisplayName(traits, normalizedEmail);
+  const company = traits?.company || traits?.organization || displayName;
+  const jobTitle = traits?.job_title || '';
 
   // 1. Find existing _User by email.
   const userQuery = new Parse.Query(Parse.User);
@@ -120,7 +205,7 @@ async function findOrCreateAdminUser(email, name) {
       throw new Error('Email domain is not authorized for admin provisioning.');
     }
 
-    return await provisionAdmin(user, normalizedEmail, name);
+    return await provisionAdmin(user, normalizedEmail, displayName, company, jobTitle);
   }
 
   // 3. No existing user.
@@ -137,12 +222,13 @@ async function findOrCreateAdminUser(email, name) {
   newUser.set('password', crypto.randomUUID());
   newUser.set('email', normalizedEmail);
   newUser.set('normalizedEmail', normalizedEmail);
-  newUser.set('name', name || normalizedEmail);
+  newUser.set('name', displayName);
+  newUser.set('emailVerified', true);
   await newUser.signUp(null, { useMasterKey: true });
-  return await provisionAdmin(newUser, normalizedEmail, name);
+  return await provisionAdmin(newUser, normalizedEmail, displayName, company, jobTitle);
 }
 
-async function provisionAdmin(user, email, name) {
+async function provisionAdmin(user, email, name, company, jobTitle) {
   // Check if contracts_Users already exists (edge case).
   const extQuery = new Parse.Query('contracts_Users');
   extQuery.equalTo('UserId', {
@@ -184,11 +270,58 @@ async function provisionAdmin(user, email, name) {
   extUser.set('UserRole', 'contracts_Admin');
   extUser.set('Email', email);
   extUser.set('Name', name || email);
+  extUser.set('Company', company || name || email);
+  extUser.set('JobTitle', jobTitle || '');
   extUser.set('TenantId', {
     __type: 'Pointer',
     className: 'partners_Tenant',
     objectId: tenantRes.id,
   });
+  await extUser.save(null, { useMasterKey: true });
+
+  // Create the default organization and team expected by the user-management UI.
+  const org = new Parse.Object('contracts_Organizations');
+  org.set('Name', company || name || email);
+  org.set('IsActive', true);
+  org.set('ExtUserId', {
+    __type: 'Pointer',
+    className: 'contracts_Users',
+    objectId: extUser.id,
+  });
+  org.set('CreatedBy', {
+    __type: 'Pointer',
+    className: '_User',
+    objectId: user.id,
+  });
+  org.set('TenantId', {
+    __type: 'Pointer',
+    className: 'partners_Tenant',
+    objectId: tenantRes.id,
+  });
+  const orgRes = await org.save(null, { useMasterKey: true });
+
+  const team = new Parse.Object('contracts_Teams');
+  team.set('Name', 'All Users');
+  team.set('OrganizationId', {
+    __type: 'Pointer',
+    className: 'contracts_Organizations',
+    objectId: orgRes.id,
+  });
+  team.set('IsActive', true);
+  const teamRes = await team.save(null, { useMasterKey: true });
+
+  extUser.set('OrganizationId', {
+    __type: 'Pointer',
+    className: 'contracts_Organizations',
+    objectId: orgRes.id,
+  });
+  extUser.set('TeamIds', [
+    {
+      __type: 'Pointer',
+      className: 'contracts_Teams',
+      objectId: teamRes.id,
+    },
+  ]);
   await extUser.save(null, { useMasterKey: true });
 
   return user;
@@ -234,13 +367,21 @@ router.get('/callback', async (req, res) => {
 
     const claims = tokenSet.claims();
     const email = claims?.email;
-    const name = claims?.name || claims?.preferred_username || email;
 
     if (!email) {
       throw new Error('OIDC provider did not return an email claim.');
     }
 
-    const user = await findOrCreateAdminUser(email, name);
+    // Look up the full gateway profile (name/organization/job_title) when configured.
+    const identity = await fetchGatewayIdentity(tokenSet.access_token);
+    const traits = identity?.traits || null;
+
+    const user = await findOrCreateAdminUser(email, traits);
+    // SSO-authenticated emails are verified by the identity provider.
+    if (user.get('emailVerified') !== true) {
+      user.set('emailVerified', true);
+      await user.save(null, { useMasterKey: true });
+    }
     const session = await createSessionToken(user.id);
 
     res.redirect(`${OIDC_FRONTEND_REDIRECT}?sessionToken=${session.sessionToken}`);

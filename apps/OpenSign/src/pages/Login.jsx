@@ -46,9 +46,23 @@ function Login() {
   const [isModal, setIsModal] = useState(false);
   const [image, setImage] = useState();
   const [errMsg, setErrMsg] = useState();
+  const isOidcEnabled =
+    import.meta.env.VITE_OIDC_ENABLED === "true" ||
+    process.env.REACT_APP_OIDC_ENABLED === "true";
+
   useEffect(() => {
-    handleUserExist();
-    handleOidcCallback();
+    // Process an OIDC callback first so the session is established before we
+    // decide whether to redirect to the initial-setup (/addadmin) page.
+    (async () => {
+      const params = new URLSearchParams(location.search);
+      const hasOidcSession = isOidcEnabled && params.get("sessionToken");
+      await handleOidcCallback();
+      // If we just consumed an OIDC session token, do not fall back to the
+      // "no admin exists" redirect; the backend has already auto-provisioned one.
+      if (!hasOidcSession) {
+        await handleUserExist();
+      }
+    })();
     // eslint-disable-next-line
   }, []);
 
@@ -66,8 +80,10 @@ function Login() {
     if (sessionToken) {
       try {
         setState({ ...state, loading: true });
-        await Parse.User.become(sessionToken);
+        const parseUser = await Parse.User.become(sessionToken);
         localStorage.setItem("accesstoken", sessionToken);
+        const userJson = parseUser.toJSON();
+        setLocalVar({ ...userJson, sessionToken });
         await continueLoginFlow();
       } catch (err) {
         console.error("OIDC callback login error", err);
@@ -101,9 +117,7 @@ function Login() {
     const app = await getAppLogo();
     if (app?.error === "invalid_json") {
       setErrMsg(t("server-down", { appName: appName }));
-    } else if (
-      app?.user === "not_exist"
-    ) {
+    } else if (app?.user === "not_exist" && !isOidcEnabled) {
       navigate("/addadmin");
     }
     if (app?.logo) {
@@ -170,12 +184,13 @@ function Login() {
   };
 
   const handleSsoLogin = () => {
-    window.location.href = `${appInfo.baseUrl}auth/oidc/login`;
+    // appInfo.baseUrl points at the Parse server path (e.g. http://localhost:8080/app);
+    // OIDC routes live at the backend root, so strip /app and append the OIDC login path.
+    const backendOrigin = (appInfo.baseUrl || window.location.origin)
+      .replace(/\/app\/?$/, "")
+      .replace(/\/$/, "");
+    window.location.href = `${backendOrigin}/auth/oidc/login`;
   };
-
-  const oidcEnabled =
-    import.meta.env.VITE_OIDC_ENABLED === "true" ||
-    process.env.REACT_APP_OIDC_ENABLED === "true";
 
   const setThirdpartyLoader = (value) => {
     setState({ ...state, thirdpartyLoader: value });
@@ -549,19 +564,17 @@ function Login() {
                       >
                         {state.loading ? t("loading") : t("login")}
                       </button>
-                    </div>
-                    {oidcEnabled && (
-                      <div className="mt-4 text-center">
+                      {isOidcEnabled && (
                         <button
                           type="button"
-                          className="op-btn op-btn-outline op-btn-secondary w-full text-xs"
+                          className="op-btn op-btn-outline op-btn-secondary"
                           onClick={handleSsoLogin}
                           disabled={state.loading}
                         >
                           {t("sign-SSO")}
                         </button>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </form>
                 </div>
                 {width >= 768 && (
