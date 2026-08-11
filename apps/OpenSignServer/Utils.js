@@ -17,7 +17,7 @@ dotenv.config({ quiet: true });
 
 export const cloudServerUrl = `http://localhost:8080${process.env.PARSE_MOUNT || '/app'}`;
 export const serverAppId = process.env.APP_ID || 'opensign';
-export const appName = 'OpenSign™';
+export const appName = 'Sunbeam Studios eSignature';
 export const prefillDraftDocWidget = ['date', 'textbox', 'checkbox', 'radio button', 'image'];
 export const prefillDraftTemWidget = [
   'date',

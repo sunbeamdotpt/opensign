@@ -28,7 +28,7 @@ export default async function forwardDoc(request) {
       const docName = _docRes.Name;
       const extUserId = _docRes?.ExtUserPtr?.objectId;
       const TenantAppName = appName;
-      const from = _docRes?.SenderName || _docRes?.ExtUserPtr?.Email;
+      const from = _docRes?.SenderName || TenantAppName;
       const replyTo = _docRes?.SenderMail || _docRes?.ExtUserPtr?.Email;
       const senderName = _docRes?.SenderName || _docRes?.ExtUserPtr?.Name;
 
